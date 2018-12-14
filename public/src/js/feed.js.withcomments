@@ -1,0 +1,123 @@
+//
+// to support import { cachenames } from "cachenames.js", 
+// cachenames.js, should be declared type="Module" in the <script> tag
+//var cacheNames  = import("./cachenames.js");
+
+var shareImageButton = document.querySelector('#share-image-button');
+var createPostArea = document.querySelector('#create-post');
+var closeCreatePostModalButton = document.querySelector('#close-create-post-modal-btn');
+var sharedMomentsArea = document.querySelector('#shared-moments');
+
+// Just to show, caching on user actions like click
+// function cardSaveButtonClicked(event) {
+//   console.log("Clicked");
+//   // check if browser supports caches
+//   if('caches' in window) {
+//     // still can access cache created in SW code
+//     caches.open('user-requested')
+//           .then( cache => {
+//             cache.add('https://httpbin.org/get');
+//             cache.add("/src/images/sf-boat.jpg");
+//           })
+//   }
+// }
+
+function openCreatePostModal() {
+  createPostArea.style.display = 'block';
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+
+    deferredPrompt.userChoice.then(function(choiceResult) {
+      console.log(choiceResult.outcome);
+
+      if (choiceResult.outcome === 'dismissed') {
+        console.log('User cancelled installation');
+      } else {
+        console.log('User added to home screen');
+      }
+    });
+
+    deferredPrompt = null;
+  }
+}
+
+function closeCreatePostModal() {
+  createPostArea.style.display = 'none';
+}
+
+shareImageButton.addEventListener('click', openCreatePostModal);
+
+closeCreatePostModalButton.addEventListener('click', closeCreatePostModal);
+
+function clearCards() {
+  while (sharedMomentsArea.hasChildNodes()) {
+    sharedMomentsArea.removeChild(sharedMomentsArea.lastChild);
+  }
+}
+
+function createCard() {
+  var cardWrapper = document.createElement('div');
+  cardWrapper.className = 'shared-moment-card mdl-card mdl-shadow--2dp';
+  var cardTitle = document.createElement('div');
+  cardTitle.className = 'mdl-card__title';
+  cardTitle.style.backgroundImage = 'url("/src/images/sf-boat.jpg")';
+  cardTitle.style.backgroundSize = 'cover';
+  cardTitle.style.height = '180px';
+  cardWrapper.appendChild(cardTitle);
+  var cardTitleTextElement = document.createElement('h2');
+  cardTitleTextElement.style.color ='Black';
+  cardTitleTextElement.className = 'mdl-card__title-text';
+  cardTitleTextElement.textContent = 'San Francisco Trip';
+  cardTitle.appendChild(cardTitleTextElement);
+  var cardSupportingText = document.createElement('div');
+  cardSupportingText.className = 'mdl-card__supporting-text';
+  cardSupportingText.textContent = 'In San Francisco';
+  cardSupportingText.style.textAlign = 'center';
+  // var cardSaveButton = document.createElement('button');
+  // cardSaveButton.classList = "mdl-button mdl-js-button mdl-button--raised mdl-button--colored";
+  // cardSaveButton.textContent="Save";
+  // cardSaveButton.addEventListener('click', cardSaveButtonClicked);
+  cardWrapper.appendChild(cardSupportingText);
+  // cardWrapper.appendChild(cardSaveButton);
+  componentHandler.upgradeElement(cardWrapper);
+  sharedMomentsArea.appendChild(cardWrapper);
+}
+
+// Cache then Network strategy
+// 1)(Feed.js) Try reach out network(fetch) and get a response
+// 1)(Feed.js) Try reach out cache and if 'data was not received from network', use this response
+// If response from cache is faster, it will be displayed first then response from network will be fetched
+// If response from network is faster, then response from cache is ignored
+// Here the fetch call is intercepted anyway in the serviceworker.
+// 2) in Service worker, intercept a fetch, go to network, 3) get the response 4) Put the response in the Cache 5) return the response
+
+var url = 'https://httpbin.org/get';
+var networkDataReceived = false;
+
+fetch(url)
+  .then(function (res) {
+    return res.json();
+  })
+  .then(function (data) {
+    networkDataReceived = true;
+    console.log('From web', data);
+    clearCards();
+    createCard();
+  });
+
+if ('caches' in window) {
+  caches.match(url)
+    .then(function (response) {
+      if (response) {
+        return response.json();
+      }
+    })
+    .then(function (data) {
+      console.log('From cache', data);
+      if (!networkDataReceived) {
+        clearCards();
+        createCard();
+      }
+    });
+}
+
